@@ -1,0 +1,82 @@
+<!DOCTYPE html>
+<html lang="pt-br">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Clã RAW</title>
+
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    
+    <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+    <div class="background-image"></div>
+    <header>
+        <div class="logo-container">
+            <img src="logo.png" alt="Logo do Clã RAW" class="clan-logo">
+        </div>
+        <nav>
+            <ul>
+                <li><button id="homeBtn">Início</button></li>
+                <li><button id="userAreaBtn">Área do Usuário</button></li>
+                <li><button id="adminAreaBtn">Área do Admin</button></li>
+            </ul>
+        </nav>
+    </header>
+
+    <main>
+        <section id="homeSection" class="active-section">
+            <h1>Bem-vindo ao Clã RAW</h1>
+            <p>Aqui você pode enviar e votar nas melhores screenshots do clã!</p>
+            <div id="winnersDisplay" class="hidden">
+                <h2>Vencedores da Rodada</h2>
+                <div id="topWinners"></div>
+            </div>
+        </section>
+
+        <section id="userAreaSection" class="hidden">
+            <h2>Área do Usuário</h2>
+            <div id="userLogin" class="hidden">
+                <p>Por favor, insira seu código de 4 dígitos para acessar:</p>
+                <input type="number" id="userCodeInput" maxlength="4">
+                <button id="userLoginBtn">Entrar</button>
+            </div>
+            <div id="userContent" class="hidden">
+                <p id="userStatusMessage"></p>
+                 <button id="logoutBtn" class="hidden">Sair</button>
+                <div id="uploadForm" class="hidden">
+                    <h3>Enviar Imagens</h3>
+                    <input type="file" id="imageUpload1" accept="image/*">
+                    <input type="file" id="imageUpload2" accept="image/*">
+                    <button id="uploadImagesBtn">Enviar</button>
+                </div>
+                <div id="votingArea" class="hidden">
+                    <h3>Votação de Imagens</h3>
+                    <div id="imagesToVote"></div>
+                </div>
+            </div>
+        </section>
+
+        <section id="adminAreaSection" class="hidden">
+            <h2>Área do Admin</h2>
+            <div id="adminLogin" class="hidden">
+                <p>Por favor, insira a senha de 5 dígitos para acessar:</p>
+                <input type="password" id="adminPasswordInput" maxlength="5">
+                <button id="adminLoginBtn">Entrar</button>
+            </div>
+            <div id="adminContent" class="hidden">
+                <button id="startUploadPhaseBtn">Iniciar fase de envios</button>
+                <button id="startVotingPhaseBtn">Iniciar fase de votação</button>
+                <button id="showWinnersBtn">Exibir vencedores</button>
+                <h3>Registrar Novo Usuário</h3>
+                <input type="number" id="newUserCodeInput" maxlength="4">
+                <button id="registerUserBtn">Registrar</button>
+                <h3>Gerenciar Participantes</h3>
+                <div id="manageParticipantsArea"></div>
+            </div>
+        </section>
+    </main>
+
+    <script src="js/script.js"></script>
+</body>
+</html>
