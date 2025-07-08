@@ -365,7 +365,8 @@ async function displayImagesForVoting() {
     const container = document.getElementById('imagesToVote');
     container.innerHTML = 'Carregando imagens...';
 
-    const { data: images, error } = await sb.from('images').select('id, image_url');
+    // MODIFICAÇÃO: Agora seleciona também o 'user_code' para verificar o dono da imagem
+    const { data: images, error } = await sb.from('images').select('id, image_url, user_code');
     if (error || images.length === 0) {
         container.innerHTML = '<p>Nenhuma imagem para votar no momento.</p>';
         return;
@@ -375,9 +376,20 @@ async function displayImagesForVoting() {
     images.forEach(image => {
         const imageCard = document.createElement('div');
         imageCard.className = 'image-card';
+
+        let buttonHtml;
+        // MODIFICAÇÃO: Verifica se o código do usuário da imagem é o mesmo do usuário logado
+        if (image.user_code === appState.currentUser) {
+            // Se for, o botão exibirá o alerta e não permitirá o voto
+            buttonHtml = `<button onclick="alert('Não é possível votar na sua própria imagem.')">Votar nesta Imagem</button>`;
+        } else {
+            // Se não for, o botão de voto funciona normalmente
+            buttonHtml = `<button onclick="voteForImage('${image.id}')">Votar nesta Imagem</button>`;
+        }
+
         imageCard.innerHTML = `
             <img src="${image.image_url}" alt="Imagem para votação">
-            <button onclick="voteForImage('${image.id}')">Votar nesta Imagem</button>
+            ${buttonHtml}
         `;
         container.appendChild(imageCard);
     });
