@@ -28,7 +28,6 @@ document.addEventListener('DOMContentLoaded', function() {
 async function initializeApp() {
     console.log('Buscando estado da aplicação no Supabase...');
     
-    // Tenta carregar o usuário da sessão do navegador
     const savedUser = sessionStorage.getItem('currentUserCode');
     if (savedUser) {
         appState.currentUser = savedUser;
@@ -36,6 +35,7 @@ async function initializeApp() {
     }
 
     await loadCurrentPhase();
+    await loadLastWinners(); 
     showSection('home');
     updateWinnersDisplay();
 }
@@ -43,27 +43,16 @@ async function initializeApp() {
 function setupEventListeners() {
     console.log('Configurando event listeners...');
     
-    const homeBtn = document.getElementById('homeBtn');
-    const userAreaBtn = document.getElementById('userAreaBtn');
-    const adminAreaBtn = document.getElementById('adminAreaBtn');
-    
-    if (!homeBtn || !userAreaBtn || !adminAreaBtn) {
-        console.error('Botões de navegação não encontrados!');
-        return;
-    }
+    document.getElementById('homeBtn').addEventListener('click', () => showSection('home'));
+    document.getElementById('userAreaBtn').addEventListener('click', () => showSection('userArea'));
+    document.getElementById('adminAreaBtn').addEventListener('click', () => showSection('adminArea'));
 
-    homeBtn.addEventListener('click', () => showSection('home'));
-    userAreaBtn.addEventListener('click', () => showSection('userArea'));
-    adminAreaBtn.addEventListener('click', () => showSection('adminArea'));
-
-    const userLoginBtn = document.getElementById('userLoginBtn');
-    userLoginBtn.addEventListener('click', userLogin);
+    document.getElementById('userLoginBtn').addEventListener('click', userLogin);
     document.getElementById('userCodeInput').addEventListener('keypress', (e) => {
         if (e.key === 'Enter') userLogin();
     });
 
-    const adminLoginBtn = document.getElementById('adminLoginBtn');
-    adminLoginBtn.addEventListener('click', adminLogin);
+    document.getElementById('adminLoginBtn').addEventListener('click', adminLogin);
     document.getElementById('adminPasswordInput').addEventListener('keypress', (e) => {
         if (e.key === 'Enter') adminLogin();
     });
@@ -74,14 +63,13 @@ function setupEventListeners() {
     document.getElementById('registerUserBtn').addEventListener('click', registerNewUser);
     document.getElementById('uploadImagesBtn').addEventListener('click', uploadImages);
 
-    // LÓGICA PARA O BOTÃO SAIR
     const logoutBtn = document.getElementById('logoutBtn');
     if (logoutBtn) {
         logoutBtn.addEventListener('click', () => {
             appState.currentUser = null;
             sessionStorage.removeItem('currentUserCode');
             alert('Você saiu.');
-            setupUserArea(); // Reconfigura a área do usuário para mostrar o login
+            setupUserArea();
         });
     }
 }
@@ -92,8 +80,7 @@ function setupEventListeners() {
 // ======================================================
 function showSection(sectionName) {
     console.log('Mostrando seção:', sectionName);
-    const allSections = document.querySelectorAll('main > section');
-    allSections.forEach(section => {
+    document.querySelectorAll('main > section').forEach(section => {
         section.classList.remove('active-section');
         section.classList.add('hidden');
     });
@@ -116,11 +103,11 @@ function setupUserArea() {
     if (!appState.currentUser) {
         userLogin.classList.remove('hidden');
         userContent.classList.add('hidden');
-        logoutBtn.classList.add('hidden'); // Garante que o botão de sair está escondido
+        logoutBtn.classList.add('hidden');
     } else {
         userLogin.classList.add('hidden');
         userContent.classList.remove('hidden');
-        logoutBtn.classList.remove('hidden'); // Mostra o botão de logout
+        logoutBtn.classList.remove('hidden');
         updateUserContent();
     }
 }
@@ -150,10 +137,29 @@ async function loadCurrentPhase() {
                                    .single();
     if (error) {
         console.error('Erro ao carregar fase atual:', error);
-        alert('Não foi possível conectar ao servidor. Tente recarregar a página.');
-    } else {
+    } else if (data) {
         appState.currentPhase = data.value;
         console.log('Fase atual carregada:', appState.currentPhase);
+    }
+}
+
+async function loadLastWinners() {
+    const { data, error } = await sb.from('app_status')
+                                   .select('value')
+                                   .eq('key', 'last_winners')
+                                   .single();
+    if (error || !data || !data.value) {
+        console.log('Nenhum vencedor anterior encontrado ou erro ao buscar.', error ? error.message : '');
+        appState.winners = [];
+    } else {
+        try {
+            const parsedWinners = JSON.parse(data.value);
+            appState.winners = Array.isArray(parsedWinners) ? parsedWinners : [];
+            console.log('Vencedores da última rodada carregados:', appState.winners);
+        } catch (e) {
+            console.error('Erro ao parsear dados dos vencedores:', e);
+            appState.winners = [];
+        }
     }
 }
 
@@ -163,14 +169,12 @@ async function userLogin() {
         alert('O código deve ter 4 dígitos.');
         return;
     }
-
-    const { data, error } = await sb.from('users').select('user_code').eq('user_code', code);
-
-    if (error || data.length === 0) {
+    const { data, error } = await sb.from('users').select('user_code').eq('user_code', code).single();
+    if (error || !data) {
         alert('Código inválido! Verifique se você está registrado.');
     } else {
         appState.currentUser = code;
-        sessionStorage.setItem('currentUserCode', code); // Salva o usuário na sessão
+        sessionStorage.setItem('currentUserCode', code);
         setupUserArea();
     }
 }
@@ -194,19 +198,16 @@ async function updateUserContent() {
     votingArea.classList.add('hidden');
 
     if (appState.currentPhase === 'upload') {
-        const { data: userImages, error } = await sb.from('images').select('id').eq('user_code', appState.currentUser);
-        
+        const { data: userImages } = await sb.from('images').select('id').eq('user_code', appState.currentUser);
         if (userImages && userImages.length < 2) {
             statusMessage.textContent = 'Fase de envio ativa. Você pode enviar até 2 imagens.';
             uploadForm.classList.remove('hidden');
         } else {
             statusMessage.textContent = 'Você já enviou o máximo de 2 imagens para esta rodada.';
         }
-
     } else if (appState.currentPhase === 'voting') {
-        const { data: userVote, error } = await sb.from('votes').select('id').eq('user_code', appState.currentUser);
-
-        if (userVote && userVote.length === 0) {
+        const { data: userVote } = await sb.from('votes').select('id').eq('user_code', appState.currentUser).maybeSingle();
+        if (!userVote) {
             statusMessage.textContent = 'Fase de votação ativa. Vote na sua imagem favorita!';
             votingArea.classList.remove('hidden');
             displayImagesForVoting();
@@ -224,26 +225,29 @@ async function startUploadPhase() {
     await sb.from('votes').delete().neq('id', 0);
     await sb.from('images').delete().neq('id', 0);
 
-    const { data: files, error } = await sb.storage.from('screenshots').list();
+    const { data: files } = await sb.storage.from('screenshots').list();
     if (files && files.length > 0) {
         const fileNames = files.map(file => file.name);
-        await sb.storage.from('screenshots').remove(fileNames);
+        if (fileNames.length > 0) await sb.storage.from('screenshots').remove(fileNames);
     }
     
-    const { error: phaseError } = await sb.from('app_status').update({ value: 'upload' }).eq('key', 'current_phase');
+    await sb.from('app_status').upsert({ key: 'last_winners', value: '[]' });
+    appState.winners = [];
+    updateWinnersDisplay();
 
+    const { error: phaseError } = await sb.from('app_status').update({ value: 'upload' }).eq('key', 'current_phase');
     if (phaseError) {
         alert('Erro ao iniciar a fase de envios.');
     } else {
         appState.currentPhase = 'upload';
-        alert('Fase de envio iniciada! Todas as imagens e votos anteriores foram removidos.');
+        alert('Fase de envio iniciada! Todas as imagens, votos e vencedores anteriores foram removidos.');
         updateManageParticipants();
     }
 }
 
 async function startVotingPhase() {
-    const { data: images } = await sb.from('images').select('id');
-    if (images.length === 0) {
+    const { data: images } = await sb.from('images').select('id', { count: 'exact' });
+    if (!images || images.length === 0) {
         alert('Não há imagens para votar!');
         return;
     }
@@ -258,10 +262,13 @@ async function startVotingPhase() {
 }
 
 async function showWinners() {
+    console.log("A função showWinners() foi chamada!"); // Linha de depuração
     const { data: votes, error: votesError } = await sb.from('votes').select('image_id');
+    console.log(`Buscando votos... Encontrados: ${votes ? votes.length : 0} votos.`); // Linha de depuração
+
     if (votesError || votes.length === 0) {
         alert('Não há votos para calcular os vencedores!');
-        return;
+        return; 
     }
 
     const voteCounts = {};
@@ -279,12 +286,24 @@ async function showWinners() {
         .map(img => ({
             ...img,
             votes: voteCounts[img.id] || 0,
-            percentage: Math.round(((voteCounts[img.id] || 0) / votes.length) * 100)
+            percentage: votes.length > 0 ? Math.round(((voteCounts[img.id] || 0) / votes.length) * 100) : 0
         }))
         .sort((a, b) => b.votes - a.votes)
         .slice(0, 3);
 
     appState.winners = sortedImages;
+    
+    console.log("TENTANDO SALVAR OS VENCEDORES NO BANCO DE DADOS..."); // Linha de depuração
+    const { error: saveWinnersError } = await sb.from('app_status')
+                                                 .upsert({ key: 'last_winners', value: JSON.stringify(appState.winners) });
+    
+    if (saveWinnersError) {
+        alert('Ocorreu um erro ao salvar os vencedores no banco de dados.');
+        console.error('Erro ao salvar vencedores:', saveWinnersError);
+        return;
+    }
+    console.log("VENCEDORES SALVOS COM SUCESSO!"); // Linha de depuração
+
     updateWinnersDisplay();
 
     await sb.from('app_status').update({ value: 'none' }).eq('key', 'current_phase');
@@ -296,23 +315,19 @@ async function showWinners() {
 async function registerNewUser() {
     const codeInput = document.getElementById('newUserCodeInput');
     const code = codeInput.value;
-    if (code.length !== 4) {
-        alert('O código deve ter exatamente 4 dígitos!');
+    if (code.length !== 4 || !/^\d{4}$/.test(code)) {
+        alert('O código deve ter exatamente 4 dígitos numéricos!');
         return;
     }
 
     const { error } = await sb.from('users').insert({ user_code: code });
-
     if (error) {
-        if (error.code === '23505') {
-            alert('Este código já está registrado!');
-        } else {
-            alert('Ocorreu um erro ao registrar o usuário.');
-            console.error(error);
-        }
+        alert(error.code === '23505' ? 'Este código já está registrado!' : 'Ocorreu um erro ao registrar o usuário.');
+        console.error(error);
     } else {
         alert('Usuário registrado com sucesso!');
         codeInput.value = '';
+        updateManageParticipants();
     }
 }
 
@@ -329,12 +344,10 @@ async function uploadImages() {
     alert('Enviando imagens... Por favor, aguarde.');
     
     for (const file of filesToUpload) {
-       // Limpa o nome do arquivo para ser seguro para URL/caminho
-const cleanFileName = file.name.replace(/[^a-zA-Z0-9_.-]/g, '_');
-const filePath = `${appState.currentUser}/${Date.now()}_${cleanFileName}`;
+        const cleanFileName = file.name.replace(/[^a-zA-Z0-9_.-]/g, '_');
+        const filePath = `${appState.currentUser}/${Date.now()}_${cleanFileName}`;
         
         const { error: uploadError } = await sb.storage.from('screenshots').upload(filePath, file);
-
         if (uploadError) {
             alert(`Erro ao enviar a imagem ${file.name}.`);
             console.error(uploadError);
@@ -342,16 +355,7 @@ const filePath = `${appState.currentUser}/${Date.now()}_${cleanFileName}`;
         }
 
         const { data: urlData } = sb.storage.from('screenshots').getPublicUrl(filePath);
-        
-        const { error: dbError } = await sb.from('images').insert({
-            user_code: appState.currentUser,
-            image_url: urlData.publicUrl
-        });
-
-        if (dbError) {
-            alert(`Imagem ${file.name} enviada, mas houve um erro ao registrar no banco de dados.`);
-            console.error(dbError);
-        }
+        await sb.from('images').insert({ user_code: appState.currentUser, image_url: urlData.publicUrl });
     }
 
     alert('Envio concluído!');
@@ -365,7 +369,6 @@ async function displayImagesForVoting() {
     const container = document.getElementById('imagesToVote');
     container.innerHTML = 'Carregando imagens...';
 
-    // MODIFICAÇÃO: Agora seleciona também o 'user_code' para verificar o dono da imagem
     const { data: images, error } = await sb.from('images').select('id, image_url, user_code');
     if (error || images.length === 0) {
         container.innerHTML = '<p>Nenhuma imagem para votar no momento.</p>';
@@ -376,21 +379,10 @@ async function displayImagesForVoting() {
     images.forEach(image => {
         const imageCard = document.createElement('div');
         imageCard.className = 'image-card';
-
-        let buttonHtml;
-        // MODIFICAÇÃO: Verifica se o código do usuário da imagem é o mesmo do usuário logado
-        if (image.user_code === appState.currentUser) {
-            // Se for, o botão exibirá o alerta e não permitirá o voto
-            buttonHtml = `<button onclick="alert('Não é possível votar na sua própria imagem.')">Votar nesta Imagem</button>`;
-        } else {
-            // Se não for, o botão de voto funciona normalmente
-            buttonHtml = `<button onclick="voteForImage('${image.id}')">Votar nesta Imagem</button>`;
-        }
-
-        imageCard.innerHTML = `
-            <img src="${image.image_url}" alt="Imagem para votação">
-            ${buttonHtml}
-        `;
+        let buttonHtml = (image.user_code === appState.currentUser)
+            ? `<button onclick="alert('Não é possível votar na sua própria imagem.')">Votar nesta Imagem</button>`
+            : `<button onclick="voteForImage('${image.id}')">Votar nesta Imagem</button>`;
+        imageCard.innerHTML = `<img src="${image.image_url}" alt="Imagem para votação">${buttonHtml}`;
         container.appendChild(imageCard);
     });
 }
@@ -398,11 +390,7 @@ async function displayImagesForVoting() {
 async function voteForImage(imageId) {
     if (!confirm('Confirma seu voto nesta imagem? Você não poderá trocá-lo.')) return;
     
-    const { error } = await sb.from('votes').insert({
-        user_code: appState.currentUser,
-        image_id: parseInt(imageId)
-    });
-
+    const { error } = await sb.from('votes').insert({ user_code: appState.currentUser, image_id: parseInt(imageId) });
     if (error) {
         alert('Erro ao registrar o voto. Você já pode ter votado.');
         console.error(error);
@@ -426,11 +414,7 @@ async function updateManageParticipants() {
     images.forEach(image => {
         const imageCard = document.createElement('div');
         imageCard.className = 'image-card';
-        imageCard.innerHTML = `
-            <img src="${image.image_url}" alt="Imagem enviada">
-            <p>Código: ${image.user_code}</p>
-            <button onclick="deleteImage('${image.id}', '${image.image_url}')">Excluir</button>
-        `;
+        imageCard.innerHTML = `<img src="${image.image_url}" alt="Imagem enviada"><p>Código: ${image.user_code}</p><button onclick="deleteImage('${image.id}', '${image.image_url}')">Excluir</button>`;
         container.appendChild(imageCard);
     });
 }
@@ -439,10 +423,12 @@ async function deleteImage(imageId, imageUrl) {
     if (!confirm('Tem certeza que deseja excluir esta imagem? A ação não pode ser desfeita.')) return;
 
     await sb.from('images').delete().eq('id', imageId);
-    
-    const path = new URL(imageUrl).pathname.split('/screenshots/')[1];
-    await sb.storage.from('screenshots').remove([path]);
-    
+    try {
+        const path = new URL(imageUrl).pathname.split('/screenshots/')[1];
+        await sb.storage.from('screenshots').remove([path]);
+    } catch(e) {
+        console.error("Não foi possível remover o arquivo do storage:", e);
+    }
     alert('Imagem excluída com sucesso!');
     updateManageParticipants();
 }
@@ -451,7 +437,7 @@ function updateWinnersDisplay() {
     const winnersDisplay = document.getElementById('winnersDisplay');
     const topWinners = document.getElementById('topWinners');
 
-    if (appState.winners.length === 0) {
+    if (!appState.winners || appState.winners.length === 0) {
         winnersDisplay.classList.add('hidden');
         return;
     }
@@ -461,15 +447,10 @@ function updateWinnersDisplay() {
     appState.winners.forEach((winner, index) => {
         const winnerCard = document.createElement('div');
         winnerCard.className = 'image-card winner-item';
-        winnerCard.innerHTML = `
-            <h4>${index + 1}º Lugar</h4>
-            <img src="${winner.image_url}" alt="Imagem vencedora">
-            <p>${winner.votes} votos (${winner.percentage}%)</p>
-        `;
+        winnerCard.innerHTML = `<h4>${index + 1}º Lugar</h4><img src="${winner.image_url}" alt="Imagem vencedora"><p>${winner.votes} votos (${winner.percentage}%)</p>`;
         topWinners.appendChild(winnerCard);
     });
 }
 
-// Funções globais para uso nos event handlers inline
 window.voteForImage = voteForImage;
 window.deleteImage = deleteImage;
