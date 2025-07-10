@@ -72,6 +72,22 @@ function setupEventListeners() {
             setupUserArea();
         });
     }
+
+    // --- OUVINTES DE EVENTOS DO MODAL ---
+    const modal = document.getElementById('imageModal');
+    const closeModalBtn = document.querySelector('.close-modal');
+
+    if (closeModalBtn) {
+        closeModalBtn.addEventListener('click', closeModal);
+    }
+    if (modal) {
+        modal.addEventListener('click', (event) => {
+            // Fecha o modal se o clique for no fundo (fora da imagem)
+            if (event.target === modal) {
+                closeModal();
+            }
+        });
+    }
 }
 
 
@@ -123,6 +139,26 @@ function setupAdminArea() {
         adminLogin.classList.add('hidden');
         adminContent.classList.remove('hidden');
         updateManageParticipants();
+    }
+}
+
+// ======================================================
+// LÓGICA DO MODAL DE IMAGEM (NOVO)
+// ======================================================
+
+function openModal(imageUrl) {
+    const modal = document.getElementById('imageModal');
+    const modalImg = document.getElementById('modalImage');
+    if (modal && modalImg) {
+        modal.style.display = "block";
+        modalImg.src = imageUrl;
+    }
+}
+
+function closeModal() {
+    const modal = document.getElementById('imageModal');
+    if (modal) {
+        modal.style.display = "none";
     }
 }
 
@@ -416,10 +452,18 @@ async function displayImagesForVoting() {
     images.forEach(image => {
         const imageCard = document.createElement('div');
         imageCard.className = 'image-card';
+        
+        const expandIcon = `<div class="expand-icon" onclick="openModal('${image.image_url}')"></div>`;
+
         let buttonHtml = (image.user_code === appState.currentUser)
-            ? `<button onclick="alert('Não é possível votar na sua própria imagem.')">Votar nesta Imagem</button>`
+            ? `<button disabled title="Não é possível votar na sua própria imagem.">Votar nesta Imagem</button>`
             : `<button onclick="voteForImage('${image.id}')">Votar nesta Imagem</button>`;
-        imageCard.innerHTML = `<img src="${image.image_url}" alt="Imagem para votação">${buttonHtml}`;
+            
+        imageCard.innerHTML = `
+            ${expandIcon}
+            <img src="${image.image_url}" alt="Imagem para votação">
+            ${buttonHtml}
+        `;
         container.appendChild(imageCard);
     });
 }
@@ -451,7 +495,15 @@ async function updateManageParticipants() {
     images.forEach(image => {
         const imageCard = document.createElement('div');
         imageCard.className = 'image-card';
-        imageCard.innerHTML = `<img src="${image.image_url}" alt="Imagem enviada"><p>Código: ${image.user_code}</p><button onclick="deleteImage('${image.id}', '${image.image_url}')">Excluir</button>`;
+
+        const expandIcon = `<div class="expand-icon" onclick="openModal('${image.image_url}')"></div>`;
+
+        imageCard.innerHTML = `
+            ${expandIcon}
+            <img src="${image.image_url}" alt="Imagem enviada">
+            <p>Código: ${image.user_code}</p>
+            <button onclick="deleteImage('${image.id}', '${image.image_url}')">Excluir</button>
+        `;
         container.appendChild(imageCard);
     });
 }
@@ -484,10 +536,20 @@ function updateWinnersDisplay() {
     appState.winners.forEach((winner, index) => {
         const winnerCard = document.createElement('div');
         winnerCard.className = 'image-card winner-item';
-        winnerCard.innerHTML = `<h4>${index + 1}º Lugar</h4><img src="${winner.image_url}" alt="Imagem vencedora"><p>${winner.votes} votos (${winner.percentage}%)</p>`;
+
+        const expandIcon = `<div class="expand-icon" onclick="openModal('${winner.image_url}')"></div>`;
+        
+        winnerCard.innerHTML = `
+            ${expandIcon}
+            <h4>${index + 1}º Lugar</h4>
+            <img src="${winner.image_url}" alt="Imagem vencedora">
+            <p>${winner.votes} votos (${winner.percentage}%)</p>
+        `;
         topWinners.appendChild(winnerCard);
     });
 }
 
+// Disponibiliza funções globalmente para serem chamadas pelo HTML
 window.voteForImage = voteForImage;
 window.deleteImage = deleteImage;
+window.openModal = openModal;
