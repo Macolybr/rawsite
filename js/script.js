@@ -199,11 +199,15 @@ async function updateUserContent() {
 
     if (appState.currentPhase === 'upload') {
         const { data: userImages } = await sb.from('images').select('id').eq('user_code', appState.currentUser);
-        if (userImages && userImages.length < 2) {
-            statusMessage.textContent = 'Fase de envio ativa. Você pode enviar até 2 imagens.';
+        const currentImageCount = userImages ? userImages.length : 0;
+        
+        if (currentImageCount < 4) {
+            const slotsRemaining = 4 - currentImageCount;
+            statusMessage.textContent = `Fase de envio ativa. Você já enviou ${currentImageCount} de 4 imagens. Você ainda pode enviar ${slotsRemaining} imagem(ns).`;
             uploadForm.classList.remove('hidden');
         } else {
-            statusMessage.textContent = 'Você já enviou o máximo de 2 imagens para esta rodada.';
+            statusMessage.textContent = 'Você já enviou o máximo de 4 imagens para esta rodada.';
+            uploadForm.classList.add('hidden'); // Garante que o form seja escondido
         }
     } else if (appState.currentPhase === 'voting') {
         const { data: userVote } = await sb.from('votes').select('id').eq('user_code', appState.currentUser).maybeSingle();
@@ -332,14 +336,45 @@ async function registerNewUser() {
 }
 
 async function uploadImages() {
-    const file1 = document.getElementById('imageUpload1').files[0];
-    const file2 = document.getElementById('imageUpload2').files[0];
-    const filesToUpload = [file1, file2].filter(f => f);
+    const filesToUpload = [
+        document.getElementById('imageUpload1').files[0],
+        document.getElementById('imageUpload2').files[0],
+        document.getElementById('imageUpload3').files[0],
+        document.getElementById('imageUpload4').files[0]
+    ].filter(f => f);
 
     if (filesToUpload.length === 0) {
         alert('Selecione pelo menos uma imagem!');
         return;
     }
+
+    // --- INÍCIO DA CORREÇÃO ---
+    // 1. Busca o número de imagens que o usuário já enviou
+    const { data: userImages, error: fetchError } = await sb.from('images')
+        .select('id')
+        .eq('user_code', appState.currentUser);
+
+    if (fetchError) {
+        alert('Erro ao verificar suas imagens existentes. Tente novamente.');
+        console.error('Erro ao buscar dados das imagens:', fetchError);
+        return;
+    }
+    
+    const currentImageCount = userImages ? userImages.length : 0;
+    const slotsRemaining = 4 - currentImageCount;
+
+    // 2. Verifica se o usuário já atingiu o limite
+    if (slotsRemaining <= 0) {
+        alert('Você já atingiu o limite máximo de 4 imagens.');
+        return;
+    }
+
+    // 3. Verifica se o usuário está tentando enviar mais imagens do que o permitido
+    if (filesToUpload.length > slotsRemaining) {
+        alert(`Você pode enviar no máximo mais ${slotsRemaining} imagem(ns). Você selecionou ${filesToUpload.length}. Por favor, ajuste sua seleção.`);
+        return;
+    }
+    // --- FIM DA CORREÇÃO ---
 
     alert('Enviando imagens... Por favor, aguarde.');
     
@@ -361,6 +396,8 @@ async function uploadImages() {
     alert('Envio concluído!');
     document.getElementById('imageUpload1').value = '';
     document.getElementById('imageUpload2').value = '';
+    document.getElementById('imageUpload3').value = '';
+    document.getElementById('imageUpload4').value = '';
     updateUserContent();
     updateManageParticipants();
 }
